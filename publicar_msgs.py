@@ -1,34 +1,52 @@
-"""
-Este job é só um pequeno exemplo de como pode ser feita a publicação das mensagens pro case
-"""
-from google.cloud import pubsub_v1
-import time
 import json
-from google.auth import jwt
+import functools
 
-#dados do projeto google e topico
-project_id = "teste-312617" #projeto gcp
-topic_id = "teste"  # topico Cloud Function
+from google.cloud import pubsub_v1
 
-# configurando credencial para publicar no PubSub 
-# talvez vc precisa criar a variável de ambiente GOOGLE_APPLICATION_CREDENTIALS
-service_account_info = json.load(open("credentials.json"))
-audience = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
-credentials = jwt.Credentials.from_service_account_info(
-    service_account_info, audience=audience
-)
-credentials_pub = credentials.with_claims(audience=audience)
-publisher = pubsub_v1.PublisherClient(credentials=credentials_pub)
-topic_path = publisher.topic_path(project_id, topic_id)
 
-#ler arquivos FazendaTeste_HistoricoConsumo...json
-# lista = dados
+project_id = 'data-engineer-dsm-firmenich'
+topic_id = 'consumo-lotes-confinamento'
+files = [
+    'dados\\FazendaUm_Consumo_20230101.json',
+    'dados\\FazendaUm_Consumo_20230102.json',
+    'dados\\FazendaUm_Consumo_20230103.json',
+    'dados\\FazendaUm_Consumo_20230104.json',
+    'dados\\FazendaDois_Consumo_20230101.json',
+    'dados\\FazendaDois_Consumo_20230102.json',
+    'dados\\FazendaDois_Consumo_20230103.json',
+    'dados\\FazendaDois_Consumo_20230104.json',
+]
 
-for item in lista:
-    data = json.dumps(item).encode("utf-8")
-    future = publisher.publish(
-        topic_path, data, origin="python", username="xxxxxxx"
+
+def publish_file_all_items(
+    file_name: str,
+    project_id: str,
+    topic_id: str
+) -> None:
+    publisher = pubsub_v1.PublisherClient()
+    topic_path = publisher.topic_path(
+        project=project_id,
+        topic=topic_id,
     )
-    print(future.result())
 
-print("Finalizado")
+    file_data = []
+    with open(file_name) as file:
+        for item in file.readlines():
+            file_data.append(item)
+
+    for item in file_data:
+        future = publisher.publish(
+            topic=topic_path,
+            data=item.encode('utf-8'),
+            origin='thiago_local_python'
+        )
+        id_curral = json.loads(item)['id_curral']
+        future.add_done_callback(functools.partial(print, f"Message sent - id_curral: {id_curral}"))
+
+
+for file_name in files:
+    publish_file_all_items(
+        file_name=file_name,
+        project_id=project_id,
+        topic_id=topic_id,
+    )
